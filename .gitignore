@@ -1,3 +1,10 @@
 embeddings_store/
-node_modules/
+__pycache__/
+*.pyc
+*.pyo
 .env
+*.egg-info/
+dist/
+.venv/
+venv/
+*.log
