@@ -20,6 +20,8 @@ import json
 import os
 from pathlib import Path
 
+_cache: list[dict] | None = None
+
 STORE_DIR = Path("embeddings_store")
 
 def init_store():
@@ -28,47 +30,35 @@ def init_store():
     exist_ok=True just ensures that python does not throw FileExistError if it already exist."""
     STORE_DIR.mkdir(exist_ok=True)
 
-def save_embedding(person_id: str, name: str, embedding: list[float]):
-    """
-    Append a new embedding for a person.
-    Call this once per enrolled photo.
-    """
+def _invalidate_cache():
+    global _cache
+    _cache = None
+
+def save_embedding(person_id, name, embedding):
+    global _cache
     init_store()
     filepath = STORE_DIR / f"{person_id}.json"
-
-    if filepath.exists():
-        data = json.loads(filepath.read_text())  
-    else:
-        data = {"id": person_id, "name": name, "embeddings": []}
-
+    data = json.loads(filepath.read_text()) if filepath.exists() else {"id": person_id, "name": name, "embeddings": []}
     data["embeddings"].append(embedding)
     filepath.write_text(json.dumps(data))
+    _invalidate_cache()
 
 
 def load_all_embeddings() -> list[dict]:
-    """
-    Load all enrolled people and their embeddings.
-    Returns a list like:
-      [{"id": "togbe", "name": "Togbe", "embeddings": [[...], [...]]}, ...]
-    """
-    init_store()
-    people = []
+    global _cache
+    if _cache is None:
+        init_store()
+        _cache = [json.loads(fp.read_text()) for fp in STORE_DIR.glob("*.json")]
+    return _cache
 
-    # Scan through all json files
-    for filepath in STORE_DIR.glob("*.json"):
-        data = json.loads(filepath.read_text())
-        people.append(data)
-
-    return people  # fixed: was inside the loop, returned after first file only
 
 def delete_person(person_id: str) -> bool:
-    """Remove a person's embedding file. Returns True if deleted."""
     filepath = STORE_DIR / f"{person_id}.json"
     if filepath.exists():
         filepath.unlink()
+        _invalidate_cache()
         return True
     return False
-
 
 def list_enrolled() -> list[dict]:
     """List enrolled people without including the raw embedding vectors."""
